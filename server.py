@@ -1,6 +1,7 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
+import os
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"  # Change this later
@@ -106,10 +107,22 @@ def latest_data():
     conn.close()
     return {"data": rows}
 
+@app.route('/data/latest', methods=['GET'])
+def get_latest_data():
+    conn = sqlite3.connect('iot_data.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT temperature, humidity, gas, dust, timestamp FROM data ORDER BY id DESC LIMIT 20")
+    rows = cursor.fetchall()
+    conn.close()
 
-import os
+    # Format data as JSON
+    data = [
+        {"temperature": r[0], "humidity": r[1], "gas": r[2], "dust": r[3], "timestamp": r[4]}
+        for r in rows
+    ]
+    return jsonify(data[::-1])  # reverse for oldest-to-newest
 
+# ---------- MAIN ----------
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
-

@@ -1,70 +1,51 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Dashboard</title>
+  <title>OmniServer Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <h2>Welcome, {{ username }}</h2>
-  <a href="/logout">Logout</a>
+  <h1>🌍 OmniServer Dashboard</h1>
 
-  <h3>Live Environment Charts</h3>
-  <canvas id="envChart" width="400" height="200"></canvas>
-
-  <h3>Recent Sensor Data</h3>
-  <table border="1">
-    <tr><th>Time</th><th>Temp (°C)</th><th>Humidity (%)</th><th>Gas</th><th>Dust</th></tr>
-    <tbody id="dataTable"></tbody>
-  </table>
+  <div class="chart-container">
+    <canvas id="tempChart"></canvas>
+    <canvas id="humChart"></canvas>
+    <canvas id="gasChart"></canvas>
+    <canvas id="dustChart"></canvas>
+  </div>
 
   <script>
-    const ctx = document.getElementById('envChart').getContext('2d');
-    const chart = new Chart(ctx, {
+    const createChart = (ctx, label, color) => new Chart(ctx, {
       type: 'line',
-      data: {
-        labels: [],
-        datasets: [
-          { label: 'Temp °C', borderColor: 'red', data: [], fill: false },
-          { label: 'Humidity %', borderColor: 'blue', data: [], fill: false },
-          { label: 'Gas', borderColor: 'green', data: [], fill: false },
-          { label: 'Dust', borderColor: 'orange', data: [], fill: false }
-        ]
-      },
-      options: {
-        responsive: true,
-        scales: { y: { beginAtZero: true } }
-      }
+      data: { labels: [], datasets: [{ label, data: [], borderColor: color, fill: false }] },
+      options: { scales: { y: { beginAtZero: true } } }
     });
 
-    async function refreshData() {
-      const res = await fetch('/latest');
-      const json = await res.json();
-      const data = json.data.reverse();   // oldest first
-      const labels = data.map(r => r[4]);
-      const temps = data.map(r => r[0]);
-      const hums  = data.map(r => r[1]);
-      const gas   = data.map(r => r[2]);
-      const dust  = data.map(r => r[3]);
+    const tempChart = createChart(document.getElementById('tempChart'), 'Temperature (°C)', 'red');
+    const humChart  = createChart(document.getElementById('humChart'), 'Humidity (%)', 'blue');
+    const gasChart  = createChart(document.getElementById('gasChart'), 'Gas Level', 'green');
+    const dustChart = createChart(document.getElementById('dustChart'), 'Dust Level', 'orange');
 
-      chart.data.labels = labels;
-      chart.data.datasets[0].data = temps;
-      chart.data.datasets[1].data = hums;
-      chart.data.datasets[2].data = gas;
-      chart.data.datasets[3].data = dust;
-      chart.update();
+    async function updateCharts() {
+      const res = await fetch('/data/latest');
+      const data = await res.json();
+      const labels = data.map(d => new Date(d.timestamp).toLocaleTimeString());
 
-      // update table
-      const tbody = document.getElementById('dataTable');
-      tbody.innerHTML = '';
-      data.forEach(r => {
-        tbody.innerHTML += `<tr>
-          <td>${r[4]}</td><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td>
-        </tr>`;
-      });
+      const update = (chart, values) => {
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = values;
+        chart.update();
+      };
+
+      update(tempChart, data.map(d => d.temperature));
+      update(humChart,  data.map(d => d.humidity));
+      update(gasChart,  data.map(d => d.gas));
+      update(dustChart, data.map(d => d.dust));
     }
 
-    refreshData();
-    setInterval(refreshData, 5000);
+    updateCharts();
+    setInterval(updateCharts, 5000); // refresh every 5 seconds
   </script>
 </body>
 </html>
